@@ -1,0 +1,11 @@
+[package]
+name = "nodice"
+version = "0.1.0"
+edition = "2024"
+authors = ["Wolf Honoré <wolfhonore@gmail.com>"]
+license = "MIT"
+readme = "README.md"
+description = "A dice roller and calculator"
+repository = "https://github.com/whonore/nodice"
+
+[dependencies]
