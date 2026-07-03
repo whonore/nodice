@@ -40,6 +40,20 @@ impl Expr {
             Self::Repeat { expr, n } => expr.max() * n,
         }
     }
+
+    pub fn expected_value(&self) -> f64 {
+        match self {
+            Self::Die { sides: 0 } => 0.0,
+            // EV(dn)
+            // = sum(1, n) / n
+            // = (n + 1) * n / 2n
+            // = (n + 1) / 2
+            Self::Die { sides } => (sides + 1) as f64 / 2.0,
+            // EV(nX)
+            // = n * EV(X)
+            Self::Repeat { expr, n } => *n as f64 * expr.expected_value(),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -69,6 +83,15 @@ mod tests {
             let max = expr.max();
             assert!(min <= v, "{min} <= {v}");
             assert!(v <= max, "{v} <= {max}");
+        }
+
+        #[test]
+        fn ev_in_range(expr in arb_expr()) {
+            let ev = expr.expected_value();
+            let min = expr.min() as f64;
+            let max = expr.max() as f64;
+            assert!(min <= ev, "{min} <= {ev}");
+            assert!(ev <= max, "{ev} <= {max}");
         }
     }
 }
