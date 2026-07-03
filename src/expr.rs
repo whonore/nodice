@@ -1,6 +1,6 @@
 use std::iter;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Expr {
     Die { sides: usize },
     Repeat { expr: Box<Self>, n: usize },
