@@ -7,5 +7,39 @@ license = "MIT"
 readme = "README.md"
 description = "A dice roller and calculator"
 repository = "https://github.com/whonore/nodice"
+keywords = ["dice"]
+categories = ["command-line-utilities"]
 
 [dependencies]
+nom = "8.0.0"
+rand = "0.10.2"
+
+[dev-dependencies]
+proptest = "1.11.0"
+
+[lints.clippy]
+cargo = { level = "warn", priority = -1 }
+nursery = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+
+doc-markdown = "allow"
+missing-errors-doc = "allow"
+must-use-candidate = "allow"
+return-self-not-must-use = "allow"
+similar-names = "allow"
+too-many-lines = "allow"
+
+allow-attributes = "warn"
+dbg-macro = "warn"
+expect-used = "warn"
+if-then-some-else-none = "warn"
+indexing-slicing = "warn"
+mod-module-files = "warn"
+needless-raw-strings = "warn"
+panic = "warn"
+redundant-test-prefix = "warn"
+todo = "warn"
+unimplemented = "warn"
+unnecessary-self-imports = "warn"
+unreachable = "warn"
+unwrap-used = "warn"
