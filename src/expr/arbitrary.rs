@@ -22,7 +22,7 @@ pub fn arb_leaf() -> impl Strategy<Value = Expr> {
 }
 
 pub fn arb_scalar() -> impl Strategy<Value = Expr> {
-    (0u32..256).prop_map(Expr::scalar)
+    (-128..128).prop_map(Expr::scalar)
 }
 
 pub fn arb_die() -> impl Strategy<Value = Expr> {

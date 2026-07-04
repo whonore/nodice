@@ -1,6 +1,6 @@
 use std::num::TryFromIntError;
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, Eq, PartialEq, thiserror::Error)]
 pub enum Error {
     #[error("Overflow")]
     Overflow,

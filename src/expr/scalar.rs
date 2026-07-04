@@ -2,23 +2,27 @@ use derive_more::{Display, From};
 
 #[derive(Copy, Clone, Debug, Display, Eq, From, PartialEq)]
 #[display("{_0}")]
-pub struct Scalar(u32);
+pub struct Scalar(i32);
 
 #[warn(clippy::arithmetic_side_effects)]
 impl Scalar {
-    pub const fn new(v: u32) -> Self {
+    pub const fn new(v: i32) -> Self {
         Self(v)
     }
 
-    pub const fn roll(self) -> u32 {
+    pub const fn value(self) -> i32 {
         self.0
     }
 
-    pub const fn min(self) -> u32 {
+    pub const fn roll(self) -> i32 {
         self.0
     }
 
-    pub const fn max(self) -> u32 {
+    pub const fn min(self) -> i32 {
+        self.0
+    }
+
+    pub const fn max(self) -> i32 {
         self.0
     }
 

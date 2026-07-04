@@ -3,12 +3,9 @@ use std::{
     ops::{Add, Sub},
 };
 
-use crate::expr::{Error, binop::BinOp, die::Die, error::Result, inner::Inner, scalar::Scalar};
-
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub struct Modifier {
-    pub(super) repeat: u32,
-}
+use crate::expr::{
+    Error, binop::BinOp, die::Die, error::Result, inner::Inner, modifier::Modifier, scalar::Scalar,
+};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Expr {
@@ -20,7 +17,7 @@ impl<E: Into<Inner>> From<E> for Expr {
     fn from(expr: E) -> Self {
         Self {
             inner: expr.into(),
-            mods: Modifier { repeat: 1 },
+            mods: Modifier::repeat(1),
         }
     }
 }
@@ -41,8 +38,8 @@ impl Sub for Expr {
     }
 }
 
-impl From<u32> for Expr {
-    fn from(v: u32) -> Self {
+impl From<i32> for Expr {
+    fn from(v: i32) -> Self {
         Scalar::new(v).into()
     }
 }
@@ -53,17 +50,45 @@ impl Expr {
         Die::new(sides).into()
     }
 
-    pub fn scalar(v: u32) -> Self {
+    pub fn scalar(v: i32) -> Self {
         Scalar::new(v).into()
     }
 
     pub fn repeat(self, n: u32) -> Result<Self> {
         Ok(Self {
-            mods: Modifier {
-                repeat: n.checked_mul(self.mods.repeat).ok_or(Error::Overflow)?,
-            },
+            mods: self.mods.merge(Modifier::repeat(n))?,
             ..self
         })
+    }
+
+    pub const fn as_binop(&self) -> Option<&BinOp> {
+        self.inner.as_binop()
+    }
+
+    pub fn into_binop(self) -> std::result::Result<BinOp, Self> {
+        self.inner
+            .into_binop()
+            .map_err(|inner| Self { inner, ..self })
+    }
+
+    pub const fn as_die(&self) -> Option<&Die> {
+        self.inner.as_die()
+    }
+
+    pub fn into_die(self) -> std::result::Result<Die, Self> {
+        self.inner
+            .into_die()
+            .map_err(|inner| Self { inner, ..self })
+    }
+
+    pub const fn as_scalar(&self) -> Option<&Scalar> {
+        self.inner.as_scalar()
+    }
+
+    pub fn into_scalar(self) -> std::result::Result<Scalar, Self> {
+        self.inner
+            .into_scalar()
+            .map_err(|inner| Self { inner, ..self })
     }
 
     pub fn roll(&self) -> Result<i128> {

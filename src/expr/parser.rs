@@ -4,7 +4,7 @@ use nom::{
     Finish, IResult, Parser,
     branch::alt,
     bytes::complete::tag,
-    character::complete::{char, multispace0, u32},
+    character::complete::{char, i32, multispace0, u32},
     combinator::{all_consuming, fail, opt},
     error::{Error, FromExternalError, ParseError},
     sequence::{delimited, preceded},
@@ -70,7 +70,7 @@ where
 }
 
 fn scalar(s: &str) -> IResult<&str, Expr> {
-    u32.map(Expr::scalar).parse(s)
+    i32.map(Expr::scalar).parse(s)
 }
 
 fn die(s: &str) -> IResult<&str, Expr> {

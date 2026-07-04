@@ -18,6 +18,11 @@ fn main() -> Result<(), Box<dyn Error>> {
         expr.max()?,
         expr.expected_value()
     );
+    if let Ok(simpl) = expr.clone().simplify()
+        && simpl != expr
+    {
+        println!("~> {simpl}");
+    }
     println!("=> {}", expr.roll()?);
 
     Ok(())

@@ -1,6 +1,6 @@
 use std::fmt;
 
-use crate::expr::{Expr, binop::BinOp, expr::Modifier, inner::Inner};
+use crate::expr::{Expr, binop::BinOp, inner::Inner, modifier::Modifier};
 
 impl fmt::Display for Expr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
