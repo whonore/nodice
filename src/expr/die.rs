@@ -1,19 +1,18 @@
 use derive_more::Display;
 
 #[derive(Copy, Clone, Debug, Display, Eq, PartialEq)]
-#[cfg_attr(test, derive(proptest_derive::Arbitrary))]
 #[display("d{sides}")]
 pub struct Die {
-    #[cfg_attr(test, proptest(strategy = "0usize..256"))]
-    sides: usize,
+    sides: u32,
 }
 
+#[warn(clippy::arithmetic_side_effects)]
 impl Die {
-    pub const fn new(sides: usize) -> Self {
+    pub const fn new(sides: u32) -> Self {
         Self { sides }
     }
 
-    pub fn roll(self) -> usize {
+    pub fn roll(self) -> u32 {
         if self.sides == 0 {
             0
         } else {
@@ -21,11 +20,11 @@ impl Die {
         }
     }
 
-    pub const fn min(self) -> usize {
+    pub const fn min(self) -> u32 {
         if self.sides == 0 { 0 } else { 1 }
     }
 
-    pub const fn max(self) -> usize {
+    pub const fn max(self) -> u32 {
         if self.sides == 0 { 0 } else { self.sides }
     }
 
@@ -37,7 +36,7 @@ impl Die {
             // = sum(1, n) / n
             // = (n + 1) * n / 2n
             // = (n + 1) / 2
-            (self.sides + 1) as f64 / 2.0
+            f64::from(self.sides).midpoint(1.0)
         }
     }
 }

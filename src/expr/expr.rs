@@ -1,19 +1,19 @@
-use std::iter;
+use std::{
+    iter,
+    ops::{Add, Sub},
+};
 
 use derive_more::Display;
 
-use crate::expr::{die::Die, inner::Inner};
+use crate::expr::{Error, binop::BinOp, die::Die, error::Result, inner::Inner};
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
-#[cfg_attr(test, derive(proptest_derive::Arbitrary))]
 pub struct Modifier {
-    #[cfg_attr(test, proptest(strategy = "0usize..256"))]
-    repeat: usize,
+    repeat: u32,
 }
 
 #[derive(Clone, Debug, Display, Eq, PartialEq)]
-#[cfg_attr(test, derive(proptest_derive::Arbitrary))]
-#[display("{}{inner}", mods.repeat)]
+#[display("{}({inner})", mods.repeat)]
 pub struct Expr {
     inner: Inner,
     mods: Modifier,
@@ -28,40 +28,67 @@ impl<E: Into<Inner>> From<E> for Expr {
     }
 }
 
+impl Add for Expr {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        BinOp::add(self.into(), rhs.into()).into()
+    }
+}
+
+impl Sub for Expr {
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        BinOp::sub(self.into(), rhs.into()).into()
+    }
+}
+
+#[warn(clippy::arithmetic_side_effects)]
 impl Expr {
-    pub fn die(sides: usize) -> Self {
+    pub fn die(sides: u32) -> Self {
         Die::new(sides).into()
     }
 
-    pub const fn repeat(self, n: usize) -> Self {
-        Self {
-            mods: Modifier { repeat: n },
+    pub fn repeat(self, n: u32) -> Result<Self> {
+        Ok(Self {
+            mods: Modifier {
+                repeat: n.checked_mul(self.mods.repeat).ok_or(Error::Overflow)?,
+            },
             ..self
-        }
+        })
     }
 
-    pub fn roll(&self) -> usize {
+    pub fn roll(&self) -> Result<i128> {
         let Self {
             inner,
             mods: Modifier { repeat },
         } = self;
-        iter::repeat_with(|| inner.roll()).take(*repeat).sum()
+        iter::repeat_with(|| inner.roll())
+            .take(usize::try_from(*repeat)?)
+            .sum()
     }
 
-    pub fn min(&self) -> usize {
+    pub fn min(&self) -> Result<i128> {
         let Self {
             inner,
             mods: Modifier { repeat },
         } = self;
-        inner.min() * repeat
+        inner
+            .min()?
+            .checked_mul(i128::from(*repeat))
+            .ok_or(Error::Overflow)
     }
 
-    pub fn max(&self) -> usize {
+    pub fn max(&self) -> Result<i128> {
         let Self {
             inner,
             mods: Modifier { repeat },
         } = self;
-        inner.max() * repeat
+        inner
+            .max()?
+            .checked_mul(i128::from(*repeat))
+            .ok_or(Error::Overflow)
     }
 
     pub fn expected_value(&self) -> f64 {
@@ -69,7 +96,7 @@ impl Expr {
             inner,
             mods: Modifier { repeat },
         } = self;
-        inner.expected_value() * *repeat as f64
+        inner.expected_value() * f64::from(*repeat)
     }
 }
 
@@ -78,35 +105,24 @@ mod tests {
     use proptest::prelude::*;
 
     use super::*;
-
-    fn arb_expr() -> impl Strategy<Value = Expr> {
-        const MAX_DEPTH: u32 = 4;
-        const DESIRED_SIZE: u32 = 64;
-        const EXPECTED_BRANCH_SIZE: u32 = 8;
-
-        let leaf = prop_oneof![(0usize..=256).prop_map(Expr::die)];
-        leaf.prop_recursive(MAX_DEPTH, DESIRED_SIZE, EXPECTED_BRANCH_SIZE, |inner| {
-            prop_oneof![inner.prop_flat_map(|expr| {
-                (0usize..=256).prop_map(move |n| Expr::repeat(expr.clone(), n))
-            })]
-        })
-    }
+    use crate::expr::arbitrary::arb_expr;
 
     proptest! {
         #[test]
         fn roll_in_range(expr in arb_expr()) {
-            let v = expr.roll();
-            let min = expr.min();
-            let max = expr.max();
+            let v = expr.roll().unwrap();
+            let min = expr.min().unwrap();
+            let max = expr.max().unwrap();
             assert!(min <= v, "{min} <= {v}");
             assert!(v <= max, "{v} <= {max}");
         }
 
         #[test]
+        #[expect(clippy::cast_precision_loss)]
         fn ev_in_range(expr in arb_expr()) {
             let ev = expr.expected_value();
-            let min = expr.min() as f64;
-            let max = expr.max() as f64;
+            let min = expr.min().unwrap() as f64;
+            let max = expr.max().unwrap() as f64;
             assert!(min <= ev, "{min} <= {ev}");
             assert!(ev <= max, "{ev} <= {max}");
         }

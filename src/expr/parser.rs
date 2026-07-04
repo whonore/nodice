@@ -4,12 +4,13 @@ use nom::{
     Finish, IResult, Parser,
     branch::alt,
     bytes::complete::tag,
-    character::complete::{multispace0, usize},
-    error::Error,
-    sequence::delimited,
+    character::complete::{char, multispace0, u32},
+    combinator::{all_consuming, opt},
+    error::{Error, ParseError},
+    sequence::{delimited, preceded},
 };
 
-use crate::expr::Expr;
+use crate::expr::{Expr, binop::Op};
 
 impl FromStr for Expr {
     type Err = Error<String>;
@@ -25,24 +26,62 @@ impl FromStr for Expr {
     }
 }
 
+// Expr ::= ExprLhs ExprRhs
+// ExprLhs ::= Num Expr | d Num | ( Expr )
+// ExprRhs ::= Op Expr | ""
+// Num ::= [0-9]+
+// Op ::= + | -
 fn parse(s: &str) -> IResult<&str, Expr> {
-    delimited(multispace0, expr, multispace0).parse_complete(s)
+    all_consuming(ws(expr)).parse(s)
+}
+
+pub fn ws<'a, O, E: ParseError<&'a str>, F>(inner: F) -> impl Parser<&'a str, Output = O, Error = E>
+where
+    F: Parser<&'a str, Output = O, Error = E>,
+{
+    delimited(multispace0, inner, multispace0)
 }
 
 fn expr(s: &str) -> IResult<&str, Expr> {
-    alt((repeat, die)).parse(s)
+    (expr_lhs, opt(expr_rhs))
+        .map(|(lhs, rhs)| {
+            if let Some((op, rhs)) = rhs {
+                op.apply(lhs, rhs)
+            } else {
+                lhs
+            }
+        })
+        .parse(s)
+}
+
+fn expr_lhs(s: &str) -> IResult<&str, Expr> {
+    alt((repeat, die, parens)).parse(s)
+}
+
+fn expr_rhs(s: &str) -> IResult<&str, (Op, Expr)> {
+    (op, expr).parse(s)
 }
 
 fn repeat(s: &str) -> IResult<&str, Expr> {
-    let (s, n) = usize(s)?;
-    let (s, expr) = expr(s)?;
-    Ok((s, expr.repeat(n)))
+    (u32, expr_lhs)
+        .map_res(|(repeat, expr)| expr.repeat(repeat))
+        .parse(s)
 }
 
 fn die(s: &str) -> IResult<&str, Expr> {
-    let (s, _) = tag("d")(s)?;
-    let (s, sides) = usize(s)?;
-    Ok((s, Expr::die(sides)))
+    preceded(tag("d"), u32).map(Expr::die).parse(s)
+}
+
+fn parens(s: &str) -> IResult<&str, Expr> {
+    delimited(ws(char('(')), expr, ws(char(')'))).parse(s)
+}
+
+fn op(s: &str) -> IResult<&str, Op> {
+    ws(alt((
+        char('+').map(|_| Op::Add),
+        char('-').map(|_| Op::Sub),
+    )))
+    .parse(s)
 }
 
 #[cfg(test)]
@@ -62,22 +101,62 @@ mod tests {
         };
     }
 
+    fn d(n: u32) -> Expr {
+        Expr::die(n)
+    }
+
+    fn r(e: Expr, n: u32) -> Expr {
+        e.repeat(n).unwrap()
+    }
+
     #[test]
     fn bare_die_ok() {
-        parse_ok!("d6", Expr::die(6));
+        parse_ok!("d6", d(6));
     }
 
     #[test]
     fn repeat_die_ok() {
-        parse_ok!("1d6", Expr::die(6).repeat(1));
-        parse_ok!("2d6", Expr::die(6).repeat(2));
+        parse_ok!("1d6", r(d(6), 1));
+        parse_ok!("2d6", r(d(6), 2));
+    }
+
+    #[test]
+    fn binop_ok() {
+        parse_ok!("1d6 + 2d4", r(d(6), 1) + r(d(4), 2));
+        parse_ok!("2d6 - d2", r(d(6), 2) - d(2));
+    }
+
+    #[test]
+    fn parens_ok() {
+        parse_ok!("(d6)", d(6));
+        parse_ok!("((d6))", d(6));
+        parse_ok!("(1d6)", r(d(6), 1));
+        parse_ok!("(1d6 + 2d4)", r(d(6), 1) + r(d(4), 2));
+        parse_ok!("(1d6 + 2d4) - d8", r(d(6), 1) + r(d(4), 2) - d(8));
+        parse_ok!("1d6 + (2d4 - d8)", r(d(6), 1) + (r(d(4), 2) - d(8)));
+    }
+
+    #[test]
+    fn repeat_parens_ok() {
+        parse_ok!("2(d6)", r(d(6), 2));
+        parse_ok!("2((d6))", r(d(6), 2));
+        parse_ok!("2(3d6)", r(d(6), 6));
+        parse_ok!("2(3(4d6))", r(d(6), 24));
+        parse_ok!("2(1d6 + 2d4)", r(r(d(6), 1) + r(d(4), 2), 2));
+        parse_ok!("2(1d6 + 2d4) - d8", r(r(d(6), 1) + r(d(4), 2), 2) - d(8));
+        parse_ok!(
+            "2(1d6 + 3(2d4 - d8))",
+            r(r(d(6), 1) + r(r(d(4), 2) - d(8), 3), 2)
+        );
     }
 
     #[test]
     fn ws_ok() {
-        parse_ok!(" \t2d6", Expr::die(6).repeat(2));
-        parse_ok!("2d6\n ", Expr::die(6).repeat(2));
-        parse_ok!(" \n2d6\t ", Expr::die(6).repeat(2));
+        parse_ok!(" \t2d6", r(d(6), 2));
+        parse_ok!("2d6\n ", r(d(6), 2));
+        parse_ok!(" \n2d6\t ", r(d(6), 2));
+        parse_ok!(" \n(  2d6\t) ", r(d(6), 2));
+        parse_ok!(" \n(  2d6\t-d4)\n+(\nd8 ) ", r(d(6), 2) - d(4) + d(8));
     }
 
     #[test]
@@ -89,6 +168,16 @@ mod tests {
     fn missing_sides_err() {
         assert!("d".parse::<Expr>().is_err());
         assert!("1d".parse::<Expr>().is_err());
+    }
+
+    #[test]
+    fn space_before_sides_err() {
+        assert!("d 6".parse::<Expr>().is_err());
+    }
+
+    #[test]
+    fn space_after_repeat_err() {
+        assert!("1 d6".parse::<Expr>().is_err());
     }
 
     #[test]
