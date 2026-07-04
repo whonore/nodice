@@ -9,16 +9,20 @@ pub fn arb_expr() -> impl Strategy<Value = Expr> {
     })
 }
 
-pub fn arb_leaf() -> impl Strategy<Value = Expr> {
-    prop_oneof![arb_die().prop_map_into()]
-}
-
 pub fn arb_binop(
     lhs: impl Strategy<Value = Expr>,
     rhs: impl Strategy<Value = Expr>,
 ) -> impl Strategy<Value = Expr> {
     (lhs, rhs)
         .prop_flat_map(|(lhs, rhs)| prop_oneof![Just(lhs.clone() + rhs.clone()), Just(lhs - rhs)])
+}
+
+pub fn arb_leaf() -> impl Strategy<Value = Expr> {
+    prop_oneof![arb_scalar(), arb_die()]
+}
+
+pub fn arb_scalar() -> impl Strategy<Value = Expr> {
+    (0u32..256).prop_map(Expr::scalar)
 }
 
 pub fn arb_die() -> impl Strategy<Value = Expr> {

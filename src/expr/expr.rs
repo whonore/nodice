@@ -5,7 +5,7 @@ use std::{
 
 use derive_more::Display;
 
-use crate::expr::{Error, binop::BinOp, die::Die, error::Result, inner::Inner};
+use crate::expr::{Error, binop::BinOp, die::Die, error::Result, inner::Inner, scalar::Scalar};
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct Modifier {
@@ -44,10 +44,20 @@ impl Sub for Expr {
     }
 }
 
+impl From<u32> for Expr {
+    fn from(v: u32) -> Self {
+        Scalar::new(v).into()
+    }
+}
+
 #[warn(clippy::arithmetic_side_effects)]
 impl Expr {
     pub fn die(sides: u32) -> Self {
         Die::new(sides).into()
+    }
+
+    pub fn scalar(v: u32) -> Self {
+        Scalar::new(v).into()
     }
 
     pub fn repeat(self, n: u32) -> Result<Self> {

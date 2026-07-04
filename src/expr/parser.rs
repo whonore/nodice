@@ -27,7 +27,7 @@ impl FromStr for Expr {
 }
 
 // Expr ::= ExprLhs ExprRhs
-// ExprLhs ::= Num Expr | d Num | ( Expr )
+// ExprLhs ::= Num Expr | Num | d Num | ( Expr )
 // ExprRhs ::= Op Expr | ""
 // Num ::= [0-9]+
 // Op ::= + | -
@@ -55,7 +55,7 @@ fn expr(s: &str) -> IResult<&str, Expr> {
 }
 
 fn expr_lhs(s: &str) -> IResult<&str, Expr> {
-    alt((repeat, die, parens)).parse(s)
+    alt((repeat, scalar, die, parens)).parse(s)
 }
 
 fn expr_rhs(s: &str) -> IResult<&str, (Op, Expr)> {
@@ -66,6 +66,10 @@ fn repeat(s: &str) -> IResult<&str, Expr> {
     (u32, expr_lhs)
         .map_res(|(repeat, expr)| expr.repeat(repeat))
         .parse(s)
+}
+
+fn scalar(s: &str) -> IResult<&str, Expr> {
+    u32.map(Expr::scalar).parse(s)
 }
 
 fn die(s: &str) -> IResult<&str, Expr> {
@@ -92,7 +96,7 @@ mod tests {
         ($s:expr, $expected:expr) => {
             match $s.parse::<Expr>() {
                 Ok(got) => {
-                    assert_eq!(got, $expected, "{}", $s);
+                    assert_eq!(got, $expected.into(), "{}", $s);
                 }
                 Err(err) => {
                     panic!("{}: {err}", $s)
@@ -105,8 +109,13 @@ mod tests {
         Expr::die(n)
     }
 
-    fn r(e: Expr, n: u32) -> Expr {
-        e.repeat(n).unwrap()
+    fn r(e: impl Into<Expr>, n: u32) -> Expr {
+        e.into().repeat(n).unwrap()
+    }
+
+    #[test]
+    fn scalar_ok() {
+        parse_ok!("6", 6);
     }
 
     #[test]
@@ -124,6 +133,7 @@ mod tests {
     fn binop_ok() {
         parse_ok!("1d6 + 2d4", r(d(6), 1) + r(d(4), 2));
         parse_ok!("2d6 - d2", r(d(6), 2) - d(2));
+        parse_ok!("2d6 - 2", r(d(6), 2) - 2.into());
     }
 
     #[test]
@@ -138,6 +148,7 @@ mod tests {
 
     #[test]
     fn repeat_parens_ok() {
+        parse_ok!("2(6)", r(6, 2));
         parse_ok!("2(d6)", r(d(6), 2));
         parse_ok!("2((d6))", r(d(6), 2));
         parse_ok!("2(3d6)", r(d(6), 6));
