@@ -12,6 +12,10 @@ impl Die {
         Self { sides }
     }
 
+    pub const fn sides(self) -> u32 {
+        self.sides
+    }
+
     pub fn roll(self) -> u32 {
         if self.sides == 0 {
             0

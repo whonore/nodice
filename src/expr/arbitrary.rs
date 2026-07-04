@@ -26,5 +26,9 @@ pub fn arb_scalar() -> impl Strategy<Value = Expr> {
 }
 
 pub fn arb_die() -> impl Strategy<Value = Expr> {
-    (0u32..256).prop_map(Expr::die)
+    // It's sometimes important to choose dice with the same number of sides,
+    // which small helps with.
+    let small = 0u32..8;
+    let full = 0u32..256;
+    prop_oneof![3 => small, 1 => full].prop_map(Expr::die)
 }

@@ -3,6 +3,7 @@ use crate::expr::{
     binop::{BinOp, Op},
     error::{Error, Result},
     inner::Inner,
+    modifier::Modifier,
     scalar::Scalar,
 };
 
@@ -57,6 +58,32 @@ impl Expr {
                         inner: Scalar::new(v).into(),
                         mods,
                     })
+                } else if let Some(lhs_die) = lhs.as_die()
+                    && let Some(rhs_die) = rhs.as_die()
+                    && lhs_die.sides() == rhs_die.sides()
+                {
+                    let lhs_repeats = lhs.mods.repeat;
+                    let rhs_repeats = rhs.mods.repeat;
+                    let repeats = match op {
+                        Op::Add => lhs_repeats.checked_add(rhs_repeats),
+                        Op::Sub if lhs_repeats > rhs_repeats => {
+                            lhs_repeats.checked_sub(rhs_repeats)
+                        }
+                        Op::Sub => {
+                            return Ok(Self {
+                                inner: BinOp {
+                                    lhs: Box::new(lhs),
+                                    rhs: Box::new(rhs),
+                                    op,
+                                }
+                                .into(),
+                                ..self
+                            });
+                        }
+                    }
+                    .ok_or(Error::Overflow)?;
+                    let mods = Modifier::repeat(repeats).merge(self.mods)?;
+                    Ok(Self { mods, ..lhs })
                 } else {
                     Ok(Self {
                         inner: BinOp {
@@ -144,5 +171,17 @@ mod tests {
         check_simplify!("6 - 2 + 1", "5");
         check_simplify!("6 - (2 + 1)", "3");
         check_simplify!("6 - (2 + 1) + d6", "3 + d6");
+    }
+
+    #[test]
+    fn simplify_dice() {
+        check_simplify!("6d6", "6d6");
+        check_simplify!("6d6 + d6", "7d6");
+        check_simplify!("6d6 - 2d6 + d6", "5d6");
+        check_simplify!("6d6 - (2d6 + d6)", "3d6");
+        check_simplify!("6d6 - (2d6 + d6) + 6", "3d6 + 6");
+        check_simplify!("d6 + d4", "d6 + d4");
+        check_simplify!("d6 - d6", "d6 - d6");
+        check_simplify!("d6 - 2d6", "d6 - 2d6");
     }
 }
