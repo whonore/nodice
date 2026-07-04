@@ -2,6 +2,7 @@
 mod arbitrary;
 mod binop;
 mod die;
+mod display;
 mod error;
 mod expr;
 mod inner;

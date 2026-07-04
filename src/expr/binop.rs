@@ -19,12 +19,11 @@ impl Op {
     }
 }
 
-#[derive(Clone, Debug, Display, Eq, PartialEq)]
-#[display("{lhs} {op} {rhs}")]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct BinOp {
-    lhs: Box<Expr>,
-    rhs: Box<Expr>,
-    op: Op,
+    pub(super) lhs: Box<Expr>,
+    pub(super) rhs: Box<Expr>,
+    pub(super) op: Op,
 }
 
 #[warn(clippy::arithmetic_side_effects)]

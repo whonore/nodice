@@ -1,8 +1,8 @@
-use derive_more::{Display, From};
+use derive_more::From;
 
 use crate::expr::{binop::BinOp, die::Die, error::Result, scalar::Scalar};
 
-#[derive(Clone, Debug, Display, Eq, From, PartialEq)]
+#[derive(Clone, Debug, Eq, From, PartialEq)]
 pub enum Inner {
     BinOp(BinOp),
     Die(Die),

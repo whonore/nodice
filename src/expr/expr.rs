@@ -1,5 +1,5 @@
 use std::{
-    fmt, iter,
+    iter,
     ops::{Add, Sub},
 };
 
@@ -7,37 +7,13 @@ use crate::expr::{Error, binop::BinOp, die::Die, error::Result, inner::Inner, sc
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct Modifier {
-    repeat: u32,
+    pub(super) repeat: u32,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Expr {
-    inner: Inner,
-    mods: Modifier,
-}
-
-impl fmt::Display for Expr {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let Self {
-            inner,
-            mods: Modifier { repeat },
-        } = self;
-
-        if *repeat != 1 {
-            write!(f, "{repeat}")?;
-        }
-
-        let skip_parens = match inner {
-            Inner::BinOp(_) => false,
-            Inner::Die(_) => true,
-            Inner::Scalar(_) => *repeat == 1,
-        };
-        if skip_parens {
-            write!(f, "{inner}")
-        } else {
-            write!(f, "({inner})")
-        }
-    }
+    pub(super) inner: Inner,
+    pub(super) mods: Modifier,
 }
 
 impl<E: Into<Inner>> From<E> for Expr {
@@ -135,7 +111,6 @@ impl Expr {
 mod tests {
     use proptest::prelude::*;
 
-    use super::*;
     use crate::expr::arbitrary::arb_expr;
 
     proptest! {
@@ -157,46 +132,5 @@ mod tests {
             assert!(min <= ev, "{min} <= {ev}");
             assert!(ev <= max, "{ev} <= {max}");
         }
-
-        #[test]
-        fn display_roundtrip(expr in arb_expr()) {
-            let s = expr.to_string();
-            match s.parse::<Expr>() {
-                Ok(got) => assert_eq!(got, expr, "{expr:?} -> {s} -> {got:?}"),
-                Err(err) => panic!("{expr:?} -> {s} -> {err}"),
-            }
-        }
-    }
-
-    macro_rules! check_display {
-        ($e:expr, $expect:expr) => {
-            let expr = $e.parse::<Expr>().unwrap();
-            let got = expr.to_string();
-            assert_eq!(got, $expect, "{} -> {got}", $e);
-        };
-    }
-
-    #[test]
-    fn display_scalar() {
-        check_display!("6", "6");
-        check_display!("(6)", "6");
-        check_display!("1(6)", "6");
-    }
-
-    #[test]
-    fn display_die() {
-        check_display!("d6", "d6");
-        check_display!("1d6", "d6");
-        check_display!("(1d6)", "d6");
-        check_display!("1(d6)", "d6");
-    }
-
-    #[test]
-    fn display_binop() {
-        check_display!("d6 + d4", "(d6 + d4)");
-        check_display!("(d6 + d4)", "(d6 + d4)");
-        check_display!("2(d6 + d4)", "2(d6 + d4)");
-        check_display!("((d6 + d2) + d4)", "((d6 + d2) + d4)");
-        check_display!("(d6 + (d2 + d4))", "(d6 + (d2 + d4))");
     }
 }
