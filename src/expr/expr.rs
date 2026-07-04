@@ -1,9 +1,7 @@
 use std::{
-    iter,
+    fmt, iter,
     ops::{Add, Sub},
 };
-
-use derive_more::Display;
 
 use crate::expr::{Error, binop::BinOp, die::Die, error::Result, inner::Inner, scalar::Scalar};
 
@@ -12,11 +10,34 @@ pub struct Modifier {
     repeat: u32,
 }
 
-#[derive(Clone, Debug, Display, Eq, PartialEq)]
-#[display("{}({inner})", mods.repeat)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Expr {
     inner: Inner,
     mods: Modifier,
+}
+
+impl fmt::Display for Expr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let Self {
+            inner,
+            mods: Modifier { repeat },
+        } = self;
+
+        if *repeat != 1 {
+            write!(f, "{repeat}")?;
+        }
+
+        let skip_parens = match inner {
+            Inner::BinOp(_) => false,
+            Inner::Die(_) => true,
+            Inner::Scalar(_) => *repeat == 1,
+        };
+        if skip_parens {
+            write!(f, "{inner}")
+        } else {
+            write!(f, "({inner})")
+        }
+    }
 }
 
 impl<E: Into<Inner>> From<E> for Expr {
@@ -145,5 +166,37 @@ mod tests {
                 Err(err) => panic!("{expr:?} -> {s} -> {err}"),
             }
         }
+    }
+
+    macro_rules! check_display {
+        ($e:expr, $expect:expr) => {
+            let expr = $e.parse::<Expr>().unwrap();
+            let got = expr.to_string();
+            assert_eq!(got, $expect, "{} -> {got}", $e);
+        };
+    }
+
+    #[test]
+    fn display_scalar() {
+        check_display!("6", "6");
+        check_display!("(6)", "6");
+        check_display!("1(6)", "6");
+    }
+
+    #[test]
+    fn display_die() {
+        check_display!("d6", "d6");
+        check_display!("1d6", "d6");
+        check_display!("(1d6)", "d6");
+        check_display!("1(d6)", "d6");
+    }
+
+    #[test]
+    fn display_binop() {
+        check_display!("d6 + d4", "(d6 + d4)");
+        check_display!("(d6 + d4)", "(d6 + d4)");
+        check_display!("2(d6 + d4)", "2(d6 + d4)");
+        check_display!("((d6 + d2) + d4)", "((d6 + d2) + d4)");
+        check_display!("(d6 + (d2 + d4))", "(d6 + (d2 + d4))");
     }
 }
