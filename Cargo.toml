@@ -14,6 +14,7 @@ categories = ["command-line-utilities"]
 clap = { version = "4.6.1", features = ["derive"] }
 derive_more = { version = "2.1.1", features = ["display", "from"] }
 nom = "8.0.0"
+nom-language = "0.1.0"
 rand = "0.10.2"
 thiserror = "2.0.18"
 

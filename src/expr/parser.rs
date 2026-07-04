@@ -5,12 +5,13 @@ use nom::{
     branch::alt,
     bytes::complete::tag,
     character::complete::{char, multispace0, u32},
-    combinator::{all_consuming, opt},
-    error::{Error, ParseError},
+    combinator::{all_consuming, fail, opt},
+    error::{Error, FromExternalError, ParseError},
     sequence::{delimited, preceded},
 };
+use nom_language::precedence::{Assoc, Operation, binary_op, precedence};
 
-use crate::expr::{Expr, binop::Op};
+use crate::expr::{self, Expr, binop::Op};
 
 impl FromStr for Expr {
     type Err = Error<String>;
@@ -26,9 +27,7 @@ impl FromStr for Expr {
     }
 }
 
-// Expr ::= ExprLhs ExprRhs
-// ExprLhs ::= Num Expr | Num | d Num | ( Expr )
-// ExprRhs ::= Op Expr | ""
+// Expr ::= Num Expr | Num | d Num | ( Expr ) | Expr Op Expr
 // Num ::= [0-9]+
 // Op ::= + | -
 fn parse(s: &str) -> IResult<&str, Expr> {
@@ -43,29 +42,31 @@ where
 }
 
 fn expr(s: &str) -> IResult<&str, Expr> {
-    (expr_lhs, opt(expr_rhs))
-        .map(|(lhs, rhs)| {
-            if let Some((op, rhs)) = rhs {
-                op.apply(lhs, rhs)
-            } else {
-                lhs
-            }
-        })
-        .parse(s)
+    let operand = alt(((opt_repeat(alt((die, parens)))), scalar));
+    precedence(
+        fail(),
+        fail(),
+        binary_op(2, Assoc::Left, op),
+        operand,
+        |op: Operation<(), (), Op, Expr>| match op {
+            Operation::Binary(lhs, op, rhs) => Ok(op.apply(lhs, rhs)),
+            Operation::Prefix(..) | Operation::Postfix(..) => Err("No prefix or postfix"),
+        },
+    )(s)
 }
 
-fn expr_lhs(s: &str) -> IResult<&str, Expr> {
-    alt((repeat, scalar, die, parens)).parse(s)
-}
-
-fn expr_rhs(s: &str) -> IResult<&str, (Op, Expr)> {
-    (op, expr).parse(s)
-}
-
-fn repeat(s: &str) -> IResult<&str, Expr> {
-    (u32, expr_lhs)
-        .map_res(|(repeat, expr)| expr.repeat(repeat))
-        .parse(s)
+pub fn opt_repeat<'a, E, F>(inner: F) -> impl Parser<&'a str, Output = Expr, Error = E>
+where
+    E: ParseError<&'a str> + FromExternalError<&'a str, expr::Error>,
+    F: Parser<&'a str, Output = Expr, Error = E>,
+{
+    (opt(u32), inner).map_res(|(repeat, expr)| {
+        if let Some(repeat) = repeat {
+            expr.repeat(repeat)
+        } else {
+            Ok(expr)
+        }
+    })
 }
 
 fn scalar(s: &str) -> IResult<&str, Expr> {
@@ -134,6 +135,13 @@ mod tests {
         parse_ok!("1d6 + 2d4", r(d(6), 1) + r(d(4), 2));
         parse_ok!("2d6 - d2", r(d(6), 2) - d(2));
         parse_ok!("2d6 - 2", r(d(6), 2) - 2.into());
+    }
+
+    #[test]
+    fn binop_left_assoc() {
+        parse_ok!("d1 - d2 + d3", (d(1) - d(2)) + d(3));
+        parse_ok!("(d1 - d2) + d3", (d(1) - d(2)) + d(3));
+        parse_ok!("d1 - (d2 + d3)", d(1) - (d(2) + d(3)));
     }
 
     #[test]

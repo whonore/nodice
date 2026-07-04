@@ -21,7 +21,7 @@ impl fmt::Display for BinOp {
 }
 
 impl Expr {
-    fn display(&self, f: &mut fmt::Formatter<'_>, in_lhs: bool) -> fmt::Result {
+    fn display(&self, f: &mut fmt::Formatter<'_>, in_rhs: bool) -> fmt::Result {
         let Self {
             inner,
             mods: Modifier { repeat },
@@ -32,14 +32,14 @@ impl Expr {
             write!(f, "{repeat}")?;
         }
 
-        inner.display(f, has_repeat, in_lhs)
+        inner.display(f, has_repeat, in_rhs)
     }
 }
 
 impl Inner {
-    fn display(&self, f: &mut fmt::Formatter<'_>, has_repeat: bool, in_lhs: bool) -> fmt::Result {
+    fn display(&self, f: &mut fmt::Formatter<'_>, has_repeat: bool, in_rhs: bool) -> fmt::Result {
         match self {
-            Self::BinOp(binop) if has_repeat || in_lhs => {
+            Self::BinOp(binop) if has_repeat || in_rhs => {
                 write!(f, "(")?;
                 binop.display(f)?;
                 write!(f, ")")
@@ -55,9 +55,9 @@ impl Inner {
 impl BinOp {
     fn display(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let Self { lhs, rhs, op } = self;
-        lhs.display(f, true)?;
+        lhs.display(f, false)?;
         write!(f, " {op} ")?;
-        rhs.display(f, false)
+        rhs.display(f, true)
     }
 }
 
@@ -108,9 +108,9 @@ mod tests {
         check_display!("(d6 + d4)", "d6 + d4");
         check_display!("2(d6 + d4)", "2(d6 + d4)");
         check_display!("d6 + d2 + d4", "d6 + d2 + d4");
-        check_display!("d6 + (d2 + d4)", "d6 + d2 + d4");
+        check_display!("d6 + (d2 + d4)", "d6 + (d2 + d4)");
         check_display!("d6 + 2(d2 + d4)", "d6 + 2(d2 + d4)");
-        check_display!("(d6 + d2) + d4", "(d6 + d2) + d4");
+        check_display!("(d6 + d2) + d4", "d6 + d2 + d4");
         check_display!("2(d6 + d2) + d4", "2(d6 + d2) + d4");
     }
 }
