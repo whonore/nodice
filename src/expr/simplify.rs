@@ -2,13 +2,38 @@ use crate::expr::{
     Expr,
     binop::{BinOp, Op},
     error::{Error, Result},
+    inner::Inner,
     scalar::Scalar,
 };
 
 #[warn(clippy::arithmetic_side_effects)]
 impl Expr {
     pub fn simplify(self) -> Result<Self> {
-        self.fold_constants()
+        self.distribute_repeats()?.fold_constants()
+    }
+
+    fn distribute_repeats(self) -> Result<Self> {
+        match self.inner {
+            // R(X + Y) => R(X) + R(Y)
+            Inner::BinOp(BinOp { lhs, rhs, op }) => {
+                let lhs = lhs.repeat(self.mods.repeat)?.distribute_repeats()?;
+                let rhs = rhs.repeat(self.mods.repeat)?.distribute_repeats()?;
+                Ok(BinOp {
+                    lhs: Box::new(lhs),
+                    rhs: Box::new(rhs),
+                    op,
+                }
+                .into())
+            }
+            Inner::Die(..) => Ok(self),
+            // R(N) => R * N
+            Inner::Scalar(scalar) => Ok(Self::scalar(
+                scalar
+                    .value()
+                    .checked_mul(i32::try_from(self.mods.repeat)?)
+                    .ok_or(Error::Overflow)?,
+            )),
+        }
     }
 
     fn fold_constants(self) -> Result<Self> {
@@ -65,6 +90,15 @@ mod tests {
         };
     }
 
+    fn only_leaves_repeat(expr: &Expr) -> bool {
+        match &expr.inner {
+            Inner::BinOp(BinOp { lhs, rhs, .. }) => {
+                expr.mods.repeat == 1 && only_leaves_repeat(lhs) && only_leaves_repeat(rhs)
+            }
+            Inner::Die(..) | Inner::Scalar(..) => true,
+        }
+    }
+
     proptest! {
         #[test]
         fn simplify_equiv(expr in arb_expr()) {
@@ -78,6 +112,12 @@ mod tests {
             let simpl2 = simpl1.clone().simplify().unwrap();
             assert_eq!(simpl1, simpl2);
         }
+
+        #[test]
+        fn simplify_only_leaves_repeat(expr in arb_expr()) {
+            let simpl = expr.simplify().unwrap();
+            assert!(only_leaves_repeat(&simpl));
+        }
     }
 
     macro_rules! check_simplify {
@@ -86,6 +126,15 @@ mod tests {
             let got = expr.simplify().unwrap().to_string();
             assert_eq!(got, $expect);
         };
+    }
+
+    #[test]
+    fn simplify_repeat() {
+        check_simplify!("2(3)", "6");
+        check_simplify!("2(3(4))", "24");
+        check_simplify!("2(3d6)", "6d6");
+        check_simplify!("2(d6 + 2d8)", "2d6 + 4d8");
+        check_simplify!("2(1 - 3(d6 + 2d8))", "2 - (6d6 + 12d8)");
     }
 
     #[test]
