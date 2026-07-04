@@ -1,3 +1,24 @@
-fn main() {
-    println!("Hello, world!");
+use std::{error::Error, str::FromStr};
+
+use clap::Parser;
+use nodice::expr::Expr;
+
+#[derive(Parser)]
+struct Cli {
+    #[arg(value_parser = Expr::from_str)]
+    expr: Expr,
+}
+
+fn main() -> Result<(), Box<dyn Error>> {
+    let Cli { expr } = Cli::parse();
+
+    println!(
+        "{expr} (Range: [{}, {}], EV: {})",
+        expr.min()?,
+        expr.max()?,
+        expr.expected_value()
+    );
+    println!("=> {}", expr.roll()?);
+
+    Ok(())
 }
