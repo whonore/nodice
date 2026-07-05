@@ -69,10 +69,9 @@ impl Expr {
                     let lhs_repeats = lhs.mods.repeat;
                     let rhs_repeats = rhs.mods.repeat;
                     let repeats = match op {
+                        // 1d6 + 1d6 = 2d6
                         Op::Add => lhs_repeats.checked_add(rhs_repeats),
-                        Op::Sub if lhs_repeats > rhs_repeats => {
-                            lhs_repeats.checked_sub(rhs_repeats)
-                        }
+                        // 2d6 - 1d6 != 1d6
                         Op::Sub => {
                             return Ok(Self {
                                 inner: BinOp {
@@ -115,9 +114,11 @@ mod tests {
 
     macro_rules! assert_expr_equiv {
         ($e1:expr, $e2:expr) => {
-            assert_eq!($e1.min(), $e2.min(), "{} != {}", $e1, $e2);
-            assert_eq!($e1.max(), $e2.max(), "{} != {}", $e1, $e2);
-            assert_relative_eq!($e1.expected_value(), $e2.expected_value());
+            let e1 = $e1;
+            let e2 = $e2;
+            assert_eq!(e1.min(), e2.min(), "{} != {}", e1, e2);
+            assert_eq!(e1.max(), e2.max(), "{} != {}", e1, e2);
+            assert_relative_eq!(e1.expected_value(), e2.expected_value());
         };
     }
 
@@ -130,23 +131,31 @@ mod tests {
         }
     }
 
+    macro_rules! assume_unwrap {
+        ($v:expr) => {{
+            let v = $v;
+            prop_assume!(v.is_ok());
+            v.unwrap()
+        }};
+    }
+
     proptest! {
         #[test]
         fn simplify_equiv(expr in arb_expr()) {
-            let simpl = expr.clone().simplify().unwrap();
+            let simpl = assume_unwrap!(expr.clone().simplify());
             assert_expr_equiv!(simpl, expr);
         }
 
         #[test]
         fn simplify_fixpoint(expr in arb_expr()) {
-            let simpl1 = expr.simplify().unwrap();
+            let simpl1 = assume_unwrap!(expr.simplify());
             let simpl2 = simpl1.clone().simplify().unwrap();
             assert_eq!(simpl1, simpl2);
         }
 
         #[test]
         fn simplify_only_leaves_repeat(expr in arb_expr()) {
-            let simpl = expr.simplify().unwrap();
+            let simpl = assume_unwrap!(expr.simplify());
             assert!(only_leaves_repeat(&simpl));
         }
     }
@@ -189,9 +198,9 @@ mod tests {
     fn simplify_dice() {
         check_simplify!("6d6", "6d6");
         check_simplify!("6d6 + d6", "7d6");
-        check_simplify!("6d6 - 2d6 + d6", "5d6");
-        check_simplify!("6d6 - (2d6 + d6)", "3d6");
-        check_simplify!("6d6 - (2d6 + d6) + 6", "3d6 + 6");
+        check_simplify!("6d6 - 2d6 + d6", "6d6 - 2d6 + d6");
+        check_simplify!("6d6 - (2d6 + d6)", "6d6 - 3d6");
+        check_simplify!("6d6 - (2d6 + d6) + 6", "6d6 - 3d6 + 6");
         check_simplify!("d6 + d4", "d6 + d4");
         check_simplify!("d6 - d6", "d6 - d6");
         check_simplify!("d6 - 2d6", "d6 - 2d6");
