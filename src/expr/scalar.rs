@@ -30,11 +30,13 @@ impl Scalar {
         self.0.into()
     }
 
-    pub fn variance(self) -> f64 {
+    #[expect(clippy::unused_self)]
+    pub const fn variance(self) -> f64 {
         0.0
     }
 
-    pub fn std_deviation(self) -> f64 {
+    #[expect(clippy::unused_self)]
+    pub const fn std_deviation(self) -> f64 {
         0.0
     }
 }
