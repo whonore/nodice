@@ -82,6 +82,19 @@ impl BinOp {
             Op::Sub => lhs.expected_value() - rhs.expected_value(),
         }
     }
+
+    pub fn variance(&self) -> f64 {
+        let Self { lhs, rhs, op } = self;
+        match op {
+            // Var(X + Y) = Var(X) + Var(Y) + 2Cov(X, Y) = Var(X) + Var(Y)
+            // Var(X - Y) = Var(X) + Var(Y) - 2Cov(X, Y) = Var(X) - Var(Y)
+            Op::Add | Op::Sub => lhs.variance() + rhs.variance(),
+        }
+    }
+
+    pub fn std_deviation(&self) -> f64 {
+        self.variance().sqrt()
+    }
 }
 
 #[cfg(test)]
@@ -100,6 +113,8 @@ mod tests {
         assert_eq!(e.min().unwrap(), 2);
         assert_eq!(e.max().unwrap(), 10);
         assert_relative_eq!(e.expected_value(), 6.0);
+        assert_relative_eq!(e.variance(), (50.0f64 / 12.0));
+        assert_relative_eq!(e.std_deviation(), (50.0f64 / 12.0).sqrt());
     }
 
     #[test]
@@ -110,5 +125,7 @@ mod tests {
         assert_eq!(e.min().unwrap(), -3);
         assert_eq!(e.max().unwrap(), 5);
         assert_relative_eq!(e.expected_value(), 1.0);
+        assert_relative_eq!(e.variance(), (50.0f64 / 12.0));
+        assert_relative_eq!(e.std_deviation(), (50.0f64 / 12.0).sqrt());
     }
 }

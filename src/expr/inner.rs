@@ -83,4 +83,20 @@ impl Inner {
             Self::Scalar(scalar) => scalar.expected_value(),
         }
     }
+
+    pub fn variance(&self) -> f64 {
+        match self {
+            Self::BinOp(binop) => binop.variance(),
+            Self::Die(die) => die.variance(),
+            Self::Scalar(scalar) => scalar.variance(),
+        }
+    }
+
+    pub fn std_deviation(&self) -> f64 {
+        match self {
+            Self::BinOp(binop) => binop.std_deviation(),
+            Self::Die(die) => die.std_deviation(),
+            Self::Scalar(scalar) => scalar.std_deviation(),
+        }
+    }
 }

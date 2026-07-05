@@ -13,10 +13,11 @@ fn main() -> Result<(), Box<dyn Error>> {
     let Cli { expr } = Cli::parse();
 
     println!(
-        "{expr} (Range: [{}, {}], EV: {})",
+        "{expr} (Range: [{}, {}], EV: {}, StdDev: {})",
         expr.min()?,
         expr.max()?,
-        expr.expected_value()
+        expr.expected_value(),
+        expr.std_deviation()
     );
     if let Ok(simpl) = expr.clone().simplify()
         && simpl != expr

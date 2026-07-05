@@ -29,6 +29,14 @@ impl Scalar {
     pub fn expected_value(self) -> f64 {
         self.0.into()
     }
+
+    pub fn variance(self) -> f64 {
+        0.0
+    }
+
+    pub fn std_deviation(self) -> f64 {
+        0.0
+    }
 }
 
 #[cfg(test)]
@@ -43,5 +51,7 @@ mod tests {
         assert_eq!(v.min(), 2);
         assert_eq!(v.max(), 2);
         assert_relative_eq!(v.expected_value(), 2.0);
+        assert_relative_eq!(v.variance(), 0.0);
+        assert_relative_eq!(v.std_deviation(), 0.0);
     }
 }

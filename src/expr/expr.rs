@@ -128,12 +128,32 @@ impl Expr {
             inner,
             mods: Modifier { repeat },
         } = self;
+        // EV(n * X) = n * EV(X)
         inner.expected_value() * f64::from(*repeat)
+    }
+
+    pub fn variance(&self) -> f64 {
+        let Self {
+            inner,
+            mods: Modifier { repeat },
+        } = self;
+        // Var(n * X) = n^2 * Var(X)
+        inner.variance() * f64::from(*repeat).powi(2)
+    }
+
+    pub fn std_deviation(&self) -> f64 {
+        let Self {
+            inner,
+            mods: Modifier { repeat },
+        } = self;
+        // SD(n * X) = n * SD(X)
+        inner.std_deviation() * f64::from(*repeat)
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use approx::assert_relative_eq;
     use proptest::prelude::*;
 
     use crate::expr::arbitrary::arb_expr;
@@ -156,6 +176,14 @@ mod tests {
             let max = expr.max().unwrap() as f64;
             assert!(min <= ev, "{min} <= {ev}");
             assert!(ev <= max, "{ev} <= {max}");
+        }
+
+
+        #[test]
+        fn var_std_dev(expr in arb_expr()) {
+            let var = expr.variance();
+            let std_dev = expr.std_deviation();
+            assert_relative_eq!(var.sqrt(), std_dev);
         }
     }
 }
