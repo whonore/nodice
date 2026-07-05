@@ -10,7 +10,7 @@ use crate::expr::{
 #[warn(clippy::arithmetic_side_effects)]
 impl Expr {
     pub fn simplify(self) -> Result<Self> {
-        self.distribute_repeats()?.fold_constants()
+        self.constant_dice()?.distribute_repeats()?.fold_constants()
     }
 
     fn distribute_repeats(self) -> Result<Self> {
@@ -38,6 +38,33 @@ impl Expr {
                     .checked_mul(i32::try_from(self.mods.repeat)?)
                     .ok_or(Error::Overflow)?,
             )),
+        }
+    }
+
+    fn constant_dice(self) -> Result<Self> {
+        match self.inner {
+            Inner::BinOp(BinOp { lhs, rhs, op }) => {
+                let lhs = lhs.constant_dice()?;
+                let rhs = rhs.constant_dice()?;
+                Ok(Self {
+                    inner: BinOp {
+                        lhs: Box::new(lhs),
+                        rhs: Box::new(rhs),
+                        op,
+                    }
+                    .into(),
+                    ..self
+                })
+            }
+            Inner::Die(die) if die.sides() == 0 => Ok(Self {
+                inner: Scalar::new(0).into(),
+                ..self
+            }),
+            Inner::Die(die) if die.sides() == 1 => Ok(Self {
+                inner: Scalar::new(1).into(),
+                ..self
+            }),
+            Inner::Die(..) | Inner::Scalar(..) => Ok(self),
         }
     }
 
@@ -183,6 +210,14 @@ mod tests {
         check_simplify!("2(0d6)", "0");
         check_simplify!("0d6 + 1", "1");
         check_simplify!("0(1d6 + 1)", "0");
+    }
+
+    #[test]
+    fn simplify_constant_dice() {
+        check_simplify!("d0", "0");
+        check_simplify!("6d0", "0");
+        check_simplify!("d1", "1");
+        check_simplify!("6d1", "6");
     }
 
     #[test]
