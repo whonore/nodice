@@ -14,6 +14,10 @@ impl Expr {
     }
 
     fn distribute_repeats(self) -> Result<Self> {
+        if self.mods.repeat == 0 {
+            return Ok(Self::scalar(0));
+        }
+
         match self.inner {
             // R(X + Y) => R(X) + R(Y)
             Inner::BinOp(BinOp { lhs, rhs, op }) => {
@@ -162,6 +166,14 @@ mod tests {
         check_simplify!("2(3d6)", "6d6");
         check_simplify!("2(d6 + 2d8)", "2d6 + 4d8");
         check_simplify!("2(1 - 3(d6 + 2d8))", "2 - (6d6 + 12d8)");
+    }
+
+    #[test]
+    fn simplify_repeat_0() {
+        check_simplify!("0d6", "0");
+        check_simplify!("2(0d6)", "0");
+        check_simplify!("0d6 + 1", "1");
+        check_simplify!("0(1d6 + 1)", "0");
     }
 
     #[test]
