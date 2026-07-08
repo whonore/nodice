@@ -112,11 +112,19 @@ impl Stats for Expr {
             inner,
             mods: Modifier { repeat },
         } = self;
-        let mut distr = inner.distribution()?;
-        for _ in 1..*repeat {
-            distr = (distr.clone() + distr)?;
+
+        if *repeat == 0 {
+            Ok(iter::once(0).collect())
+        } else if *repeat == 1 {
+            inner.distribution()
+        } else {
+            let mut distr = inner.distribution()?;
+            let orig_distr = distr.clone();
+            for _ in 1..*repeat {
+                distr = (distr + orig_distr.clone())?;
+            }
+            Ok(distr)
         }
-        Ok(distr)
     }
 
     fn min(&self) -> Result<i128> {
@@ -178,12 +186,20 @@ mod tests {
     use super::*;
     use crate::expr::arbitrary::arb_expr;
 
+    macro_rules! assume_unwrap {
+        ($v:expr) => {{
+            let v = $v;
+            prop_assume!(v.is_ok());
+            v.unwrap()
+        }};
+    }
+
     proptest! {
         #[test]
         fn roll_in_range(expr in arb_expr()) {
+            let min = assume_unwrap!(expr.min());
+            let max = assume_unwrap!(expr.max());
             let v = expr.roll().unwrap();
-            let min = expr.min().unwrap();
-            let max = expr.max().unwrap();
             assert!(min <= v, "{min} <= {v}");
             assert!(v <= max, "{v} <= {max}");
         }
@@ -191,20 +207,65 @@ mod tests {
         #[test]
         #[expect(clippy::cast_precision_loss)]
         fn ev_in_range(expr in arb_expr()) {
+            let min = assume_unwrap!(expr.min()) as f64;
+            let max = assume_unwrap!(expr.max()) as f64;
             let ev = expr.expected_value().unwrap();
-            let min = expr.min().unwrap() as f64;
-            let max = expr.max().unwrap() as f64;
             assert!(min <= ev, "{min} <= {ev}");
             assert!(ev <= max, "{ev} <= {max}");
         }
 
-
         #[test]
         fn var_std_dev(expr in arb_expr()) {
-            let var = expr.variance().unwrap();
+            let var = assume_unwrap!(expr.variance());
             let std_dev = expr.std_deviation().unwrap();
             assert_relative_eq!(var.sqrt(), std_dev, epsilon = 1e-6);
         }
+
+        #[test]
+        fn min_matches_distribution(expr in arb_expr()) {
+            let min1 = assume_unwrap!(expr.distribution()).min().unwrap();
+            let min2 = expr.min().unwrap();
+            assert_eq!(min1, min2);
+        }
+
+        #[test]
+        fn max_matches_distribution(expr in arb_expr()) {
+            let max1 = assume_unwrap!(expr.distribution()).max().unwrap();
+            let max2 = expr.max().unwrap();
+            assert_eq!(max1, max2);
+        }
+
+        #[test]
+        fn ev_matches_distribution(expr in arb_expr()) {
+            let ev1 = assume_unwrap!(assume_unwrap!(expr.distribution()).expected_value());
+            let ev2 = expr.expected_value().unwrap();
+            assert_relative_eq!(ev1, ev2);
+        }
+
+        #[test]
+        fn variance_matches_distribution(expr in arb_expr()) {
+            let var1 = assume_unwrap!(assume_unwrap!(expr.distribution()).variance());
+            let var2 = expr.variance().unwrap();
+            assert_relative_eq!(var1, var2);
+        }
+    }
+
+    #[test]
+    fn repeat_0() {
+        let d = Expr::die(6).repeat(0).unwrap();
+        assert_eq!(d.min().unwrap(), 0);
+        assert_eq!(d.max().unwrap(), 0);
+        assert_relative_eq!(d.expected_value().unwrap(), 0.0);
+        assert_relative_eq!(d.variance().unwrap(), 0.0);
+        assert_relative_eq!(d.std_deviation().unwrap(), 0.0);
+        assert_eq!(
+            d.distribution()
+                .unwrap()
+                .iter()
+                .sorted()
+                .collect::<Vec<_>>(),
+            vec![(0, 1)]
+        );
     }
 
     #[test]
