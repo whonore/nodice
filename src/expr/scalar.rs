@@ -71,10 +71,10 @@ mod tests {
         assert_eq!(
             v.distribution()
                 .unwrap()
-                .into_iter()
+                .iter()
                 .sorted()
                 .collect::<Vec<_>>(),
-            vec![2]
+            vec![(2, 1)]
         );
     }
 }

@@ -91,10 +91,10 @@ mod tests {
         assert_eq!(
             d.distribution()
                 .unwrap()
-                .into_iter()
+                .iter()
                 .sorted()
                 .collect::<Vec<_>>(),
-            vec![0]
+            vec![(0, 1)]
         );
     }
 
@@ -109,10 +109,10 @@ mod tests {
         assert_eq!(
             d.distribution()
                 .unwrap()
-                .into_iter()
+                .iter()
                 .sorted()
                 .collect::<Vec<_>>(),
-            vec![1, 2, 3, 4, 5, 6]
+            vec![(1, 1), (2, 1), (3, 1), (4, 1), (5, 1), (6, 1)]
         );
     }
 }
