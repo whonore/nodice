@@ -1,13 +1,16 @@
-use crate::expr::{
-    Expr,
-    binop::{BinOp, Op},
+#![warn(clippy::arithmetic_side_effects)]
+
+use crate::{
     error::{Error, Result},
-    inner::Inner,
-    modifier::Modifier,
-    scalar::Scalar,
+    expr::{
+        Expr,
+        binop::{BinOp, Op},
+        inner::Inner,
+        modifier::Modifier,
+        scalar::Scalar,
+    },
 };
 
-#[warn(clippy::arithmetic_side_effects)]
 impl Expr {
     pub fn simplify(self) -> Result<Self> {
         self.constant_dice()?.distribute_repeats()?.fold_constants()
@@ -137,15 +140,15 @@ mod tests {
     use proptest::prelude::*;
 
     use super::*;
-    use crate::expr::arbitrary::arb_expr;
+    use crate::{expr::arbitrary::arb_expr, stats::Stats};
 
     macro_rules! assert_expr_equiv {
         ($e1:expr, $e2:expr) => {
             let e1 = $e1;
             let e2 = $e2;
-            assert_eq!(e1.min(), e2.min(), "{} != {}", e1, e2);
-            assert_eq!(e1.max(), e2.max(), "{} != {}", e1, e2);
-            assert_relative_eq!(e1.expected_value(), e2.expected_value());
+            assert_eq!(e1.min().unwrap(), e2.min().unwrap(), "{} != {}", e1, e2);
+            assert_eq!(e1.max().unwrap(), e2.max().unwrap(), "{} != {}", e1, e2);
+            assert_relative_eq!(e1.expected_value().unwrap(), e2.expected_value().unwrap());
         };
     }
 

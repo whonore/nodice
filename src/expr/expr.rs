@@ -1,10 +1,14 @@
+#![warn(clippy::arithmetic_side_effects)]
+
 use std::{
     iter,
     ops::{Add, Sub},
 };
 
-use crate::expr::{
-    Error, binop::BinOp, die::Die, error::Result, inner::Inner, modifier::Modifier, scalar::Scalar,
+use crate::{
+    error::{Error, Result},
+    expr::{binop::BinOp, die::Die, inner::Inner, modifier::Modifier, scalar::Scalar},
+    stats::{Distribution, Stats},
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -44,7 +48,6 @@ impl From<i32> for Expr {
     }
 }
 
-#[warn(clippy::arithmetic_side_effects)]
 impl Expr {
     pub fn die(sides: u32) -> Self {
         Die::new(sides).into()
@@ -100,8 +103,23 @@ impl Expr {
             .take(usize::try_from(*repeat)?)
             .sum()
     }
+}
 
-    pub fn min(&self) -> Result<i128> {
+impl Stats for Expr {
+    #[expect(clippy::arithmetic_side_effects)]
+    fn distribution(&self) -> Result<Distribution> {
+        let Self {
+            inner,
+            mods: Modifier { repeat },
+        } = self;
+        let mut distr = inner.distribution()?;
+        for _ in 1..*repeat {
+            distr = (distr.clone() + distr)?;
+        }
+        Ok(distr)
+    }
+
+    fn min(&self) -> Result<i128> {
         let Self {
             inner,
             mods: Modifier { repeat },
@@ -112,7 +130,7 @@ impl Expr {
             .ok_or(Error::Overflow)
     }
 
-    pub fn max(&self) -> Result<i128> {
+    fn max(&self) -> Result<i128> {
         let Self {
             inner,
             mods: Modifier { repeat },
@@ -123,39 +141,41 @@ impl Expr {
             .ok_or(Error::Overflow)
     }
 
-    pub fn expected_value(&self) -> f64 {
+    fn expected_value(&self) -> Result<f64> {
         let Self {
             inner,
             mods: Modifier { repeat },
         } = self;
-        // EV(n * X) = n * EV(X)
-        inner.expected_value() * f64::from(*repeat)
+        // EV(Σ_1_n X) = n * EV(X)
+        Ok(inner.expected_value()? * f64::from(*repeat))
     }
 
-    pub fn variance(&self) -> f64 {
+    fn variance(&self) -> Result<f64> {
         let Self {
             inner,
             mods: Modifier { repeat },
         } = self;
-        // Var(n * X) = n^2 * Var(X)
-        inner.variance() * f64::from(*repeat).powi(2)
+        // Var(Σ_1_n X) = n * Var(X)
+        Ok(inner.variance()? * f64::from(*repeat))
     }
 
-    pub fn std_deviation(&self) -> f64 {
+    fn std_deviation(&self) -> Result<f64> {
         let Self {
             inner,
             mods: Modifier { repeat },
         } = self;
-        // SD(n * X) = n * SD(X)
-        inner.std_deviation() * f64::from(*repeat)
+        // SD(Σ_1_n X) = sqrt(Var(Σ_1_n X)) = sqrt(n * Var(X)) = sqrt(n) * SD(X)
+        Ok(inner.std_deviation()? * f64::from(*repeat).sqrt())
     }
 }
 
 #[cfg(test)]
 mod tests {
     use approx::assert_relative_eq;
+    use itertools::Itertools;
     use proptest::prelude::*;
 
+    use super::*;
     use crate::expr::arbitrary::arb_expr;
 
     proptest! {
@@ -171,7 +191,7 @@ mod tests {
         #[test]
         #[expect(clippy::cast_precision_loss)]
         fn ev_in_range(expr in arb_expr()) {
-            let ev = expr.expected_value();
+            let ev = expr.expected_value().unwrap();
             let min = expr.min().unwrap() as f64;
             let max = expr.max().unwrap() as f64;
             assert!(min <= ev, "{min} <= {ev}");
@@ -181,9 +201,30 @@ mod tests {
 
         #[test]
         fn var_std_dev(expr in arb_expr()) {
-            let var = expr.variance();
-            let std_dev = expr.std_deviation();
-            assert_relative_eq!(var.sqrt(), std_dev);
+            let var = expr.variance().unwrap();
+            let std_dev = expr.std_deviation().unwrap();
+            assert_relative_eq!(var.sqrt(), std_dev, epsilon = 1e-6);
         }
+    }
+
+    #[test]
+    fn two_d6() {
+        let d = Expr::die(6).repeat(2).unwrap();
+        assert_eq!(d.min().unwrap(), 2);
+        assert_eq!(d.max().unwrap(), 12);
+        assert_relative_eq!(d.expected_value().unwrap(), 7.0);
+        assert_relative_eq!(d.variance().unwrap(), 70.0f64 / 12.0);
+        assert_relative_eq!(d.std_deviation().unwrap(), (70.0f64 / 12.0).sqrt());
+        assert_eq!(
+            d.distribution()
+                .unwrap()
+                .into_iter()
+                .sorted()
+                .collect::<Vec<_>>(),
+            vec![
+                2, 3, 3, 4, 4, 4, 5, 5, 5, 5, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 8, 8, 8, 8, 8, 9, 9,
+                9, 9, 10, 10, 10, 11, 11, 12,
+            ]
+        );
     }
 }

@@ -1,6 +1,12 @@
+#![warn(clippy::arithmetic_side_effects)]
+
 use derive_more::From;
 
-use crate::expr::{binop::BinOp, die::Die, error::Result, scalar::Scalar};
+use crate::{
+    error::Result,
+    expr::{binop::BinOp, die::Die, scalar::Scalar},
+    stats::{Distribution, Stats},
+};
 
 #[derive(Clone, Debug, Eq, From, PartialEq)]
 pub enum Inner {
@@ -59,24 +65,34 @@ impl Inner {
             Self::Scalar(scalar) => Ok(scalar.roll().into()),
         }
     }
+}
 
-    pub fn min(&self) -> Result<i128> {
+impl Stats for Inner {
+    fn distribution(&self) -> Result<Distribution> {
+        match self {
+            Self::BinOp(binop) => binop.distribution(),
+            Self::Die(die) => die.distribution(),
+            Self::Scalar(scalar) => scalar.distribution(),
+        }
+    }
+
+    fn min(&self) -> Result<i128> {
         match self {
             Self::BinOp(binop) => binop.min(),
-            Self::Die(die) => Ok(die.min().into()),
-            Self::Scalar(scalar) => Ok(scalar.min().into()),
+            Self::Die(die) => die.min(),
+            Self::Scalar(scalar) => scalar.min(),
         }
     }
 
-    pub fn max(&self) -> Result<i128> {
+    fn max(&self) -> Result<i128> {
         match self {
             Self::BinOp(binop) => binop.max(),
-            Self::Die(die) => Ok(die.max().into()),
-            Self::Scalar(scalar) => Ok(scalar.max().into()),
+            Self::Die(die) => die.max(),
+            Self::Scalar(scalar) => scalar.max(),
         }
     }
 
-    pub fn expected_value(&self) -> f64 {
+    fn expected_value(&self) -> Result<f64> {
         match self {
             Self::BinOp(binop) => binop.expected_value(),
             Self::Die(die) => die.expected_value(),
@@ -84,7 +100,7 @@ impl Inner {
         }
     }
 
-    pub fn variance(&self) -> f64 {
+    fn variance(&self) -> Result<f64> {
         match self {
             Self::BinOp(binop) => binop.variance(),
             Self::Die(die) => die.variance(),
@@ -92,7 +108,7 @@ impl Inner {
         }
     }
 
-    pub fn std_deviation(&self) -> f64 {
+    fn std_deviation(&self) -> Result<f64> {
         match self {
             Self::BinOp(binop) => binop.std_deviation(),
             Self::Die(die) => die.std_deviation(),

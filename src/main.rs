@@ -1,7 +1,7 @@
 use std::{error::Error, str::FromStr};
 
 use clap::Parser;
-use nodice::expr::Expr;
+use nodice::{expr::Expr, stats::Stats};
 
 #[derive(Parser)]
 struct Cli {
@@ -16,8 +16,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         "{expr} (Range: [{}, {}], EV: {}, StdDev: {})",
         expr.min()?,
         expr.max()?,
-        expr.expected_value(),
-        expr.std_deviation()
+        expr.expected_value()?,
+        expr.std_deviation()?
     );
     if let Ok(simpl) = expr.clone().simplify()
         && simpl != expr

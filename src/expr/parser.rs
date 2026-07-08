@@ -6,20 +6,23 @@ use nom::{
     bytes::complete::tag,
     character::complete::{char, i32, multispace0, u32},
     combinator::{all_consuming, fail, opt},
-    error::{Error, FromExternalError, ParseError},
+    error::{Error as NomError, FromExternalError, ParseError},
     sequence::{delimited, preceded},
 };
 use nom_language::precedence::{Assoc, Operation, binary_op, precedence};
 
-use crate::expr::{self, Expr, binop::Op};
+use crate::{
+    error::Error,
+    expr::{Expr, binop::Op},
+};
 
 impl FromStr for Expr {
-    type Err = Error<String>;
+    type Err = NomError<String>;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match parse(s).finish() {
             Ok((_rem, expr)) => Ok(expr),
-            Err(Error { input, code }) => Err(Error {
+            Err(NomError { input, code }) => Err(NomError {
                 input: input.to_string(),
                 code,
             }),
@@ -57,7 +60,7 @@ fn expr(s: &str) -> IResult<&str, Expr> {
 
 pub fn opt_repeat<'a, E, F>(inner: F) -> impl Parser<&'a str, Output = Expr, Error = E>
 where
-    E: ParseError<&'a str> + FromExternalError<&'a str, expr::Error>,
+    E: ParseError<&'a str> + FromExternalError<&'a str, Error>,
     F: Parser<&'a str, Output = Expr, Error = E>,
 {
     (opt(u32), inner).map_res(|(repeat, expr)| {

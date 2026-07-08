@@ -2,6 +2,8 @@ use std::num::TryFromIntError;
 
 #[derive(Debug, Eq, PartialEq, thiserror::Error)]
 pub enum Error {
+    #[error("EmptyDistribution")]
+    EmptyDistribution,
     #[error("Overflow")]
     Overflow,
 }

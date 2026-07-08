@@ -1,6 +1,12 @@
+#![warn(clippy::arithmetic_side_effects)]
+
 use derive_more::Display;
 
-use crate::expr::{Error, error::Result, expr::Expr};
+use crate::{
+    error::{Error, Result},
+    expr::Expr,
+    stats::{Distribution, Stats},
+};
 
 #[derive(Copy, Clone, Debug, Display, Eq, PartialEq)]
 pub enum Op {
@@ -11,6 +17,7 @@ pub enum Op {
 }
 
 impl Op {
+    #[expect(clippy::arithmetic_side_effects)]
     pub fn apply(self, lhs: Expr, rhs: Expr) -> Expr {
         match self {
             Self::Add => lhs + rhs,
@@ -26,7 +33,6 @@ pub struct BinOp {
     pub(super) op: Op,
 }
 
-#[warn(clippy::arithmetic_side_effects)]
 impl BinOp {
     pub const fn add(lhs: Box<Expr>, rhs: Box<Expr>) -> Self {
         Self {
@@ -54,8 +60,19 @@ impl BinOp {
         }
         .ok_or(Error::Overflow)
     }
+}
 
-    pub fn min(&self) -> Result<i128> {
+impl Stats for BinOp {
+    #[expect(clippy::arithmetic_side_effects)]
+    fn distribution(&self) -> Result<Distribution> {
+        let Self { lhs, rhs, op } = self;
+        match op {
+            Op::Add => lhs.distribution()? + rhs.distribution()?,
+            Op::Sub => lhs.distribution()? - rhs.distribution()?,
+        }
+    }
+
+    fn min(&self) -> Result<i128> {
         let Self { lhs, rhs, op } = self;
         match op {
             Op::Add => lhs.min()?.checked_add(rhs.min()?),
@@ -64,7 +81,7 @@ impl BinOp {
         .ok_or(Error::Overflow)
     }
 
-    pub fn max(&self) -> Result<i128> {
+    fn max(&self) -> Result<i128> {
         let Self { lhs, rhs, op } = self;
         match op {
             Op::Add => lhs.max()?.checked_add(rhs.max()?),
@@ -73,33 +90,30 @@ impl BinOp {
         .ok_or(Error::Overflow)
     }
 
-    pub fn expected_value(&self) -> f64 {
+    fn expected_value(&self) -> Result<f64> {
         let Self { lhs, rhs, op } = self;
         match op {
             // EV(X + Y) = EV(X) + EV(Y)
-            Op::Add => lhs.expected_value() + rhs.expected_value(),
+            Op::Add => Ok(lhs.expected_value()? + rhs.expected_value()?),
             // EV(X - Y) = EV(X) - EV(Y)
-            Op::Sub => lhs.expected_value() - rhs.expected_value(),
+            Op::Sub => Ok(lhs.expected_value()? - rhs.expected_value()?),
         }
     }
 
-    pub fn variance(&self) -> f64 {
+    fn variance(&self) -> Result<f64> {
         let Self { lhs, rhs, op } = self;
         match op {
             // Var(X + Y) = Var(X) + Var(Y) + 2Cov(X, Y) = Var(X) + Var(Y)
             // Var(X - Y) = Var(X) + Var(Y) - 2Cov(X, Y) = Var(X) - Var(Y)
-            Op::Add | Op::Sub => lhs.variance() + rhs.variance(),
+            Op::Add | Op::Sub => Ok(lhs.variance()? + rhs.variance()?),
         }
-    }
-
-    pub fn std_deviation(&self) -> f64 {
-        self.variance().sqrt()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use approx::assert_relative_eq;
+    use itertools::Itertools;
 
     use crate::expr::die::Die;
 
@@ -112,9 +126,19 @@ mod tests {
         let e = BinOp::add(Box::new(d1.into()), Box::new(d2.into()));
         assert_eq!(e.min().unwrap(), 2);
         assert_eq!(e.max().unwrap(), 10);
-        assert_relative_eq!(e.expected_value(), 6.0);
-        assert_relative_eq!(e.variance(), (50.0f64 / 12.0));
-        assert_relative_eq!(e.std_deviation(), (50.0f64 / 12.0).sqrt());
+        assert_relative_eq!(e.expected_value().unwrap(), 6.0);
+        assert_relative_eq!(e.variance().unwrap(), (50.0f64 / 12.0));
+        assert_relative_eq!(e.std_deviation().unwrap(), (50.0f64 / 12.0).sqrt());
+        assert_eq!(
+            e.distribution()
+                .unwrap()
+                .into_iter()
+                .sorted()
+                .collect::<Vec<_>>(),
+            vec![
+                2, 3, 3, 4, 4, 4, 5, 5, 5, 5, 6, 6, 6, 6, 7, 7, 7, 7, 8, 8, 8, 9, 9, 10
+            ]
+        );
     }
 
     #[test]
@@ -124,8 +148,18 @@ mod tests {
         let e = BinOp::sub(Box::new(d1.into()), Box::new(d2.into()));
         assert_eq!(e.min().unwrap(), -3);
         assert_eq!(e.max().unwrap(), 5);
-        assert_relative_eq!(e.expected_value(), 1.0);
-        assert_relative_eq!(e.variance(), (50.0f64 / 12.0));
-        assert_relative_eq!(e.std_deviation(), (50.0f64 / 12.0).sqrt());
+        assert_relative_eq!(e.expected_value().unwrap(), 1.0);
+        assert_relative_eq!(e.variance().unwrap(), (50.0f64 / 12.0));
+        assert_relative_eq!(e.std_deviation().unwrap(), (50.0f64 / 12.0).sqrt());
+        assert_eq!(
+            e.distribution()
+                .unwrap()
+                .into_iter()
+                .sorted()
+                .collect::<Vec<_>>(),
+            vec![
+                -3, -2, -2, -1, -1, -1, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 4, 4, 5
+            ]
+        );
     }
 }
