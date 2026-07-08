@@ -72,6 +72,10 @@ impl Distribution {
         )?))
     }
 
+    pub fn contains(&self, v: i128) -> bool {
+        self.0.contains_key(&v)
+    }
+
     pub fn min(&self) -> Result<i128> {
         self.iter()
             .map(|(v, _)| v)

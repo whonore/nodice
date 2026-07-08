@@ -205,6 +205,13 @@ mod tests {
         }
 
         #[test]
+        fn roll_in_distribution(expr in arb_expr()) {
+            let distribution = assume_unwrap!(expr.distribution());
+            let v = expr.roll().unwrap();
+            assert!(distribution.contains(v));
+        }
+
+        #[test]
         #[expect(clippy::cast_precision_loss)]
         fn ev_in_range(expr in arb_expr()) {
             let min = assume_unwrap!(expr.min()) as f64;
